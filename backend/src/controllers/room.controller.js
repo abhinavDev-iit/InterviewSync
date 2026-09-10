@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import crypto from "crypto";
 import roomModel from "../models/room.model.js";
+import {executeCode} from "../services/execution.service.js";
 
 function createRoomCode(){
     return crypto.randomBytes(4).toString("hex").slice(0,6).toUpperCase();
@@ -158,4 +159,38 @@ export async function saveCode(req,res){
     room.currentCode=req.body.code;
     await room.save();
     res.status(200).json({message:"Code saved",currentCode:room.currentCode});
+}
+
+export async function runCode(req,res){
+    if(!mongoose.isValidObjectId(req.params.roomId)){
+        return res.status(404).json({message:"Room not found"});
+    }
+
+    const room=await roomModel.findById(req.params.roomId);
+    if(!room){
+        return res.status(404).json({message:"Room not found"});
+    }
+
+    const isMember=room.interviewer.equals(req.user._id) || room.candidate?.equals(req.user._id);
+    if(!isMember){
+        return res.status(403).json({message:"You cannot run code in this room"});
+    }
+
+    const {language=room.language,code,stdin=""}=req.body;
+    if(!["javascript","cpp","python"].includes(language)){
+        return res.status(400).json({message:"Unsupported language"});
+    }
+    if(typeof code!=="string" || !code.trim()){
+        return res.status(400).json({message:"Code is required"});
+    }
+    if(code.length>50000 || String(stdin).length>10000){
+        return res.status(400).json({message:"Code or input is too large"});
+    }
+
+    try{
+        const result=await executeCode(language,code,String(stdin));
+        res.status(200).json({result});
+    }catch(error){
+        res.status(502).json({message:error.message || "Code execution service unavailable"});
+    }
 }
