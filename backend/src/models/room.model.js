@@ -45,6 +45,17 @@ const roomSchema=new mongoose.Schema({
         type:String,
         enum:["waiting","active","completed"],
         default:"waiting"
+    },
+    feedback:{
+        type:String,
+        default:"",
+        maxlength:5000
+    },
+    rating:{
+        type:Number,
+        min:1,
+        max:5,
+        default:null
     }
 },{
     timestamps:true
@@ -53,4 +64,3 @@ const roomSchema=new mongoose.Schema({
 const roomModel=mongoose.model("rooms",roomSchema);
 
 export default roomModel;
-

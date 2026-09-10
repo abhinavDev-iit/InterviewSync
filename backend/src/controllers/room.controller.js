@@ -25,6 +25,15 @@ function populateRoom(query){
         .populate("candidate","name email role");
 }
 
+function getVisibleRoom(room,user){
+    const roomData=room.toObject();
+    if(user.role==="candidate" && room.status!=="completed"){
+        delete roomData.feedback;
+        delete roomData.rating;
+    }
+    return roomData;
+}
+
 export async function createRoom(req,res){
     if(req.user.role!=="interviewer"){
         return res.status(403).json({message:"Only interviewers can create rooms"});
@@ -62,7 +71,7 @@ export async function getRooms(req,res){
         : {candidate:req.user._id};
     const rooms=await populateRoom(roomModel.find(filter).sort({createdAt:-1}));
 
-    res.status(200).json({rooms});
+    res.status(200).json({rooms:rooms.map(room=>getVisibleRoom(room,req.user))});
 }
 
 export async function getRoom(req,res){
@@ -81,7 +90,7 @@ export async function getRoom(req,res){
         return res.status(403).json({message:"You cannot access this room"});
     }
 
-    res.status(200).json({room});
+    res.status(200).json({room:getVisibleRoom(room,req.user)});
 }
 
 export async function joinRoom(req,res){
@@ -193,4 +202,35 @@ export async function runCode(req,res){
     }catch(error){
         res.status(502).json({message:error.message || "Code execution service unavailable"});
     }
+}
+
+export async function submitFeedback(req,res){
+    if(!mongoose.isValidObjectId(req.params.roomId)){
+        return res.status(404).json({message:"Room not found"});
+    }
+
+    const room=await roomModel.findById(req.params.roomId);
+    if(!room){
+        return res.status(404).json({message:"Room not found"});
+    }
+    if(req.user.role!=="interviewer" || !room.interviewer.equals(req.user._id)){
+        return res.status(403).json({message:"Only the room interviewer can submit feedback"});
+    }
+
+    const {feedback,rating}=req.body;
+    if(!feedback?.trim()){
+        return res.status(400).json({message:"Feedback is required"});
+    }
+    if(rating!==undefined && (!Number.isInteger(rating) || rating<1 || rating>5)){
+        return res.status(400).json({message:"Rating must be between 1 and 5"});
+    }
+
+    room.feedback=feedback.trim();
+    room.rating=rating ?? null;
+    await room.save();
+    res.status(200).json({
+        message:"Feedback saved",
+        feedback:room.feedback,
+        rating:room.rating
+    });
 }
