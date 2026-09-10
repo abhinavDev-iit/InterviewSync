@@ -72,7 +72,7 @@ async function createJoinedRoom(){
 
 beforeAll(async()=>{
     httpServer=createServer(app);
-    ioServer=setupSocket(httpServer);
+    ioServer=setupSocket(httpServer,app);
     await new Promise(resolve=>httpServer.listen(0,"127.0.0.1",resolve));
     serverUrl=`http://127.0.0.1:${httpServer.address().port}`;
 });
@@ -84,7 +84,9 @@ afterEach(()=>{
 });
 
 afterAll(async()=>{
-    await new Promise(resolve=>ioServer.close(resolve));
+    if(ioServer){
+        await new Promise(resolve=>ioServer.close(resolve));
+    }
 });
 
 describe("real-time code sync",()=>{

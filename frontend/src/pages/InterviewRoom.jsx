@@ -54,7 +54,14 @@ function InterviewRoom(){
             setError(error.message);
         });
         socket.on("code-update",update=>setCode(update.code));
-        socket.on("user-joined",data=>setPresence(`${data.user.name} joined the room`));
+        socket.on("execution-update",data=>setResult(data.result));
+        socket.on("room-completed",()=>setRoom(current=>({...current,status:"completed"})));
+        socket.on("user-joined",data=>{
+            setPresence(`${data.user.name} joined the room`);
+            if(data.user.role==="candidate"){
+                setRoom(current=>({...current,candidate:data.user,status:"active"}));
+            }
+        });
         socket.on("user-left",data=>setPresence(`${data.user.name} left the room`));
 
         return ()=>{
@@ -212,4 +219,3 @@ function InterviewRoom(){
 }
 
 export default InterviewRoom;
-

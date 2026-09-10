@@ -37,6 +37,7 @@ export async function executeCode(language,code,stdin=""){
     const submissionResponse=await fetch(`${apiUrl}/submissions?base64_encoded=false`,{
         method:"POST",
         headers:getHeaders(),
+        signal:AbortSignal.timeout(10000),
         body:JSON.stringify({
             language_id:languageId,
             source_code:code,
@@ -56,7 +57,7 @@ export async function executeCode(language,code,stdin=""){
     for(let attempt=0;attempt<10;attempt++){
         const resultResponse=await fetch(
             `${apiUrl}/submissions/${submission.token}?base64_encoded=false&fields=stdout,stderr,compile_output,message,status,time`,
-            {headers:getHeaders()}
+            {headers:getHeaders(),signal:AbortSignal.timeout(10000)}
         );
         if(!resultResponse.ok){
             throw new Error("Could not read code execution result");
@@ -71,4 +72,3 @@ export async function executeCode(language,code,stdin=""){
 
     throw new Error("Code execution timed out");
 }
-

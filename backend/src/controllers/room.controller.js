@@ -103,7 +103,7 @@ export async function joinRoom(req,res){
         return res.status(400).json({message:"Room code is required"});
     }
 
-    const room=await roomModel.findOne({roomCode});
+    let room=await roomModel.findOne({roomCode});
     if(!room){
         return res.status(404).json({message:"Invalid room code"});
     }
@@ -115,16 +115,24 @@ export async function joinRoom(req,res){
     }
 
     if(!room.candidate){
-        room.candidate=req.user._id;
-        room.status="active";
-        await room.save();
+        const joinedRoom=await roomModel.findOneAndUpdate({
+            _id:room._id,
+            candidate:null,
+            status:{$ne:"completed"}
+        },{
+            $set:{candidate:req.user._id,status:"active"}
+        },{new:true});
+        if(!joinedRoom){
+            return res.status(409).json({message:"This room already has a candidate"});
+        }
+        room=joinedRoom;
     }
 
     await room.populate([
         {path:"interviewer",select:"name email role"},
         {path:"candidate",select:"name email role"}
     ]);
-    res.status(200).json({message:"Interview room joined",room});
+    res.status(200).json({message:"Interview room joined",room:getVisibleRoom(room,req.user)});
 }
 
 export async function completeRoom(req,res){
@@ -142,6 +150,7 @@ export async function completeRoom(req,res){
 
     room.status="completed";
     await room.save();
+    req.app.get("io")?.to(room._id.toString()).emit("room-completed",{roomId:room._id});
     await room.populate([
         {path:"interviewer",select:"name email role"},
         {path:"candidate",select:"name email role"}
@@ -155,6 +164,9 @@ export async function saveCode(req,res){
     }
     if(typeof req.body.code!=="string"){
         return res.status(400).json({message:"Code is required"});
+    }
+    if(req.body.code.length>50000){
+        return res.status(400).json({message:"Code is too large"});
     }
 
     const room=await roomModel.findById(req.params.roomId);
@@ -184,6 +196,9 @@ export async function runCode(req,res){
     if(!isMember){
         return res.status(403).json({message:"You cannot run code in this room"});
     }
+    if(room.status==="completed"){
+        return res.status(409).json({message:"This interview is completed"});
+    }
 
     const {language=room.language,code,stdin=""}=req.body;
     if(!["javascript","cpp","python"].includes(language)){
@@ -198,6 +213,7 @@ export async function runCode(req,res){
 
     try{
         const result=await executeCode(language,code,String(stdin));
+        req.app.get("io")?.to(room._id.toString()).emit("execution-update",{result});
         res.status(200).json({result});
     }catch(error){
         res.status(502).json({message:error.message || "Code execution service unavailable"});
@@ -220,6 +236,9 @@ export async function submitFeedback(req,res){
     const {feedback,rating}=req.body;
     if(!feedback?.trim()){
         return res.status(400).json({message:"Feedback is required"});
+    }
+    if(feedback.trim().length>5000){
+        return res.status(400).json({message:"Feedback is too long"});
     }
     if(rating!==undefined && (!Number.isInteger(rating) || rating<1 || rating>5)){
         return res.status(400).json({message:"Rating must be between 1 and 5"});

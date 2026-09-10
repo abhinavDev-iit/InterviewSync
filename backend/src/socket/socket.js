@@ -10,13 +10,14 @@ function canAccessRoom(room,userId){
     return room.interviewer.equals(userId) || room.candidate?.equals(userId);
 }
 
-function setupSocket(httpServer){
+function setupSocket(httpServer,app){
     const io=new Server(httpServer,{
         cors:{
             origin:config.CLIENT_URL,
             credentials:true
         }
     });
+    app?.set("io",io);
 
     io.use(async(socket,next)=>{
         const cookies=parseCookie(socket.request.headers.cookie || "");
@@ -62,7 +63,7 @@ function setupSocket(httpServer){
 
         socket.on("code-change",async({roomId,code}={},done=()=>{})=>{
             try{
-                if(!mongoose.isValidObjectId(roomId) || typeof code!=="string"){
+                if(!mongoose.isValidObjectId(roomId) || typeof code!=="string" || code.length>50000){
                     return done({ok:false,message:"Invalid code update"});
                 }
 
