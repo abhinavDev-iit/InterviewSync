@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import config from "./config/config.js";
 import authRouter from "./routes/auth.routes.js";
+import roomRouter from "./routes/room.routes.js";
 
 const app=express();
 
@@ -18,6 +19,7 @@ app.get("/api/health",(req,res)=>{
 });
 
 app.use("/api/auth",authRouter);
+app.use("/api/rooms",roomRouter);
 
 app.use((err,req,res,next)=>{
     console.error(err);
