@@ -12,4 +12,3 @@ roomRouter.get("/:roomId",roomController.getRoom);
 roomRouter.patch("/:roomId/complete",roomController.completeRoom);
 
 export default roomRouter;
-
