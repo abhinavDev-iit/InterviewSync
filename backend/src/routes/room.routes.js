@@ -9,6 +9,7 @@ roomRouter.post("/",roomController.createRoom);
 roomRouter.get("/",roomController.getRooms);
 roomRouter.post("/join",roomController.joinRoom);
 roomRouter.get("/:roomId",roomController.getRoom);
+roomRouter.patch("/:roomId/code",roomController.saveCode);
 roomRouter.patch("/:roomId/complete",roomController.completeRoom);
 
 export default roomRouter;

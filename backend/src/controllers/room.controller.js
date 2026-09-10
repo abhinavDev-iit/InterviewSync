@@ -138,3 +138,24 @@ export async function completeRoom(req,res){
     ]);
     res.status(200).json({message:"Interview completed",room});
 }
+
+export async function saveCode(req,res){
+    if(!mongoose.isValidObjectId(req.params.roomId)){
+        return res.status(404).json({message:"Room not found"});
+    }
+    if(typeof req.body.code!=="string"){
+        return res.status(400).json({message:"Code is required"});
+    }
+
+    const room=await roomModel.findById(req.params.roomId);
+    if(!room){
+        return res.status(404).json({message:"Room not found"});
+    }
+    if(!room.candidate?.equals(req.user._id) || room.status==="completed"){
+        return res.status(403).json({message:"Only the room candidate can save code"});
+    }
+
+    room.currentCode=req.body.code;
+    await room.save();
+    res.status(200).json({message:"Code saved",currentCode:room.currentCode});
+}

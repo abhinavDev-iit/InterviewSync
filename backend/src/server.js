@@ -1,13 +1,16 @@
+import {createServer} from "node:http";
 import app from "./app.js";
 import connectDB from "./config/db.js";
 import config from "./config/config.js";
+import setupSocket from "./socket/socket.js";
 
 async function startServer(){
     await connectDB();
-    app.listen(config.PORT,()=>{
+    const httpServer=createServer(app);
+    setupSocket(httpServer);
+    httpServer.listen(config.PORT,()=>{
         console.log(`Server listening on port ${config.PORT}`);
     });
 }
 
 startServer();
-
