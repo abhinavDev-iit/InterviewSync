@@ -38,16 +38,16 @@ afterEach(()=>{
 });
 
 describe("code execution",()=>{
-    it("runs member code through the mocked provider",async()=>{
+    it("returns a completed result from the submission request",async()=>{
         const room=await createRoomWithCandidate();
-        const fetchMock=vi.spyOn(global,"fetch")
-            .mockResolvedValueOnce(new Response(JSON.stringify({token:"submission-token"}),{status:201}))
-            .mockResolvedValueOnce(new Response(JSON.stringify({
+        const fetchMock=vi.spyOn(global,"fetch").mockResolvedValueOnce(
+            new Response(JSON.stringify({
                 stdout:"hello\n",
                 stderr:null,
                 time:"0.014",
                 status:{id:3,description:"Accepted"}
-            }),{status:200}));
+            }),{status:200})
+        );
 
         const response=await room.candidateAgent
             .post(`/api/rooms/${room.roomId}/run`)
@@ -60,8 +60,28 @@ describe("code execution",()=>{
             status:"Accepted",
             executionTime:"0.014"
         });
-        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock.mock.calls[0][0]).toContain("wait=true");
         expect(JSON.parse(fetchMock.mock.calls[0][1].body).language_id).toBe(63);
+    });
+
+    it("polls when the submission response only contains a token",async()=>{
+        const room=await createRoomWithCandidate();
+        const fetchMock=vi.spyOn(global,"fetch")
+            .mockResolvedValueOnce(new Response(JSON.stringify({token:"submission-token"}),{status:201}))
+            .mockResolvedValueOnce(new Response(JSON.stringify({
+                stdout:"fallback\n",
+                status:{id:3,description:"Accepted"}
+            }),{status:200}));
+
+        const response=await room.candidateAgent
+            .post(`/api/rooms/${room.roomId}/run`)
+            .send({language:"javascript",code:"console.log('fallback')"});
+
+        expect(response.status).toBe(200);
+        expect(response.body.result.stdout).toBe("fallback\n");
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock.mock.calls[1][0]).toContain("/submissions/submission-token?");
     });
 
     it("rejects an unrelated user",async()=>{
@@ -92,6 +112,7 @@ describe("code execution",()=>{
 
     it("returns a useful error when the provider fails",async()=>{
         const room=await createRoomWithCandidate();
+        const consoleError=vi.spyOn(console,"error").mockImplementation(()=>{});
         vi.spyOn(global,"fetch").mockResolvedValueOnce(new Response("unavailable",{status:503}));
 
         const response=await room.candidateAgent
@@ -100,5 +121,35 @@ describe("code execution",()=>{
 
         expect(response.status).toBe(502);
         expect(response.body.message).toContain("provider");
+        expect(consoleError).toHaveBeenCalledWith("Judge0 request failed",{
+            stage:"create-submission",
+            status:503,
+            statusText:"",
+            body:"unavailable"
+        });
+    });
+
+    it("logs a polling failure with its token redacted",async()=>{
+        const room=await createRoomWithCandidate();
+        const consoleError=vi.spyOn(console,"error").mockImplementation(()=>{});
+        vi.spyOn(global,"fetch")
+            .mockResolvedValueOnce(new Response(JSON.stringify({token:"submission-token"}),{status:201}))
+            .mockResolvedValueOnce(new Response(
+                JSON.stringify({error:"rate limit for submission-token"}),
+                {status:429,statusText:"Too Many Requests"}
+            ));
+
+        const response=await room.candidateAgent
+            .post(`/api/rooms/${room.roomId}/run`)
+            .send({language:"javascript",code:"console.log('hello')"});
+
+        expect(response.status).toBe(502);
+        expect(response.body.message).toBe("Could not read code execution result");
+        expect(consoleError).toHaveBeenCalledWith("Judge0 request failed",{
+            stage:"get-submission",
+            status:429,
+            statusText:"Too Many Requests",
+            body:'{"error":"rate limit for [TOKEN]"}'
+        });
     });
 });
