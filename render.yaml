@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: interviewsync-api
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    rootDir: backend
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CLIENT_URL
+        value: http://localhost:5173
+      - key: CODE_EXECUTION_API_URL
+        value: https://ce.judge0.com
+
